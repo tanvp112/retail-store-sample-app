@@ -9,3 +9,7 @@ reports
 env
 oss-output
 kubeconfig_*
+.idea
+node_modules
+
+ort-build

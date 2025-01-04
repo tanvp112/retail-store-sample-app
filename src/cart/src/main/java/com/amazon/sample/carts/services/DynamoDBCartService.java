@@ -18,66 +18,79 @@
 
 package com.amazon.sample.carts.services;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
-import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedQueryList;
-import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
-import com.amazonaws.services.dynamodbv2.model.DeleteTableRequest;
-import com.amazonaws.services.dynamodbv2.model.Projection;
-import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazon.sample.carts.repositories.CartEntity;
 import com.amazon.sample.carts.repositories.ItemEntity;
 import com.amazon.sample.carts.repositories.dynamo.entities.DynamoItemEntity;
 import lombok.extern.slf4j.Slf4j;
-
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.Page;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationListener;
+
 @Slf4j
-public class DynamoDBCartService implements CartService {
+public class DynamoDBCartService implements CartService, ApplicationListener<ApplicationReadyEvent> {
 
-    private final DynamoDBMapper mapper;
-    private final AmazonDynamoDB dynamoDB;
+    private final DynamoDbClient dynamoDBClient;
     private final boolean createTable;
+    private final String tableName;
+    private final DynamoDbTable<DynamoItemEntity> table;
 
-    public DynamoDBCartService(DynamoDBMapper mapper, AmazonDynamoDB dynamoDB, boolean createTable) {
-        this.mapper = mapper;
-        this.dynamoDB = dynamoDB;
+    static final TableSchema<DynamoItemEntity> CART_TABLE_SCHEMA = TableSchema.fromClass(DynamoItemEntity.class);
+
+    public DynamoDBCartService(DynamoDbClient dynamoDBClient, DynamoDbEnhancedClient dynamoDbEnhancedClient,
+            boolean createTable, String tableName) {
+        this.dynamoDBClient = dynamoDBClient;
         this.createTable = createTable;
+        this.tableName = tableName;
+
+        this.table = dynamoDbEnhancedClient.table(tableName, CART_TABLE_SCHEMA);
+    }
+
+    @Override
+    public void onApplicationEvent(final ApplicationReadyEvent event) {
+        this.items("test");
     }
 
     @PostConstruct
     public void init() {
-        if(createTable) {
-            DeleteTableRequest deleteTableRequest = mapper.generateDeleteTableRequest(DynamoItemEntity.class);
-
+        if (createTable) {
             try {
-                dynamoDB.describeTable(deleteTableRequest.getTableName());
-
-                log.warn("Dynamo table found, deleting to recreate....");
-                dynamoDB.deleteTable(deleteTableRequest);
-            }
-            catch (com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException rnfe) {
-                log.warn("Dynamo "+deleteTableRequest.getTableName()+" table not found");
+                dynamoDBClient.deleteTable(
+                        DeleteTableRequest.builder().tableName(this.tableName).build());
+            } catch (ResourceNotFoundException rnfe) {
+                log.warn("Dynamo table not found");
             }
 
-            ProvisionedThroughput pt = new ProvisionedThroughput(1L, 1L);
+            this.table.createTable(builder -> builder
+                    .globalSecondaryIndices(builder3 -> builder3
+                            .indexName("idx_global_customerId")
 
-            CreateTableRequest tableRequest = mapper
-                    .generateCreateTableRequest(DynamoItemEntity.class);
-            tableRequest.setProvisionedThroughput(pt);
-            tableRequest.getGlobalSecondaryIndexes().get(0).setProvisionedThroughput(pt);
-            tableRequest.getGlobalSecondaryIndexes().get(0).setProjection(new Projection().withProjectionType("ALL"));
-            dynamoDB.createTable(tableRequest);
+                            .projection(builder2 -> builder2
+                                    .projectionType(ProjectionType.ALL))
+                            .provisionedThroughput(builder4 -> builder4
+                                    .writeCapacityUnits(1L)
+                                    .readCapacityUnits(1L)))
+                    .provisionedThroughput(b -> b
+                            .readCapacityUnits(1L)
+                            .writeCapacityUnits(1L)
+                            .build()));
 
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            this.dynamoDBClient.waiter().waitUntilTableExists(b -> b.tableName(this.tableName));
         }
     }
 
@@ -102,7 +115,9 @@ public class DynamoDBCartService implements CartService {
     public void delete(String customerId) {
         List<DynamoItemEntity> items = items(customerId);
 
-        mapper.batchDelete(items);
+        items.forEach(item -> {
+            this.table.deleteItem(item);
+        });
     }
 
     @Override
@@ -114,59 +129,56 @@ public class DynamoDBCartService implements CartService {
     public ItemEntity add(String customerId, String itemId, int quantity, int unitPrice) {
         String hashKey = hashKey(customerId, itemId);
 
-        DynamoItemEntity item = this.mapper.load(DynamoItemEntity.class, hashKey);
+        DynamoItemEntity item = this.table.getItem(Key.builder().partitionValue(hashKey(customerId, itemId)).build());
 
-        if(item != null) {
+        if (item != null) {
             item.setQuantity(item.getQuantity() + quantity);
-        }
-        else {
+        } else {
             item = new DynamoItemEntity(hashKey, customerId, itemId, 1, unitPrice);
         }
 
-        this.mapper.save(item);
+        this.table.putItem(item);
 
         return item;
     }
 
     @Override
     public List<DynamoItemEntity> items(String customerId) {
-        final DynamoItemEntity gsiKeyObj = new DynamoItemEntity();
-        gsiKeyObj.setCustomerId(customerId);
-        final DynamoDBQueryExpression<DynamoItemEntity> queryExpression =
-                new DynamoDBQueryExpression<>();
-        queryExpression.setHashKeyValues(gsiKeyObj);
-        queryExpression.setIndexName("idx_global_customerId");
-        queryExpression.setConsistentRead(false);   // cannot use consistent read on GSI
-        final PaginatedQueryList<DynamoItemEntity> results =
-                mapper.query(DynamoItemEntity.class, queryExpression);
+        DynamoDbIndex<DynamoItemEntity> index = this.table.index("idx_global_customerId");
+        QueryConditional q = QueryConditional.keyEqualTo(Key.builder().partitionValue(customerId).build());
+        Iterator<Page<DynamoItemEntity>> result = index.query(q).iterator();
+        List<DynamoItemEntity> users = new ArrayList<>();
 
-        return new ArrayList<>(results);
+        while (result.hasNext()) {
+            Page<DynamoItemEntity> userPage = result.next();
+            users.addAll(userPage.items());
+        }
+
+        return users;
     }
 
     @Override
     public Optional<DynamoItemEntity> item(String customerId, String itemId) {
-        return Optional.of(mapper.load(DynamoItemEntity.class, hashKey(customerId, itemId)));
+        return Optional.of(this.table.getItem(Key.builder().partitionValue(hashKey(customerId, itemId)).build()));
     }
 
     @Override
     public void deleteItem(String customerId, String itemId) {
-        item(customerId, itemId).ifPresentOrElse(this.mapper::delete,
-        ()
-            -> log.warn("Item missing for delete {} -- {}", customerId, itemId));
+        item(customerId, itemId).ifPresentOrElse(this.table::deleteItem,
+                () -> log.warn("Item missing for delete {} -- {}", customerId, itemId));
     }
 
     @Override
     public Optional<DynamoItemEntity> update(String customerId, String itemId, int quantity, int unitPrice) {
         return item(customerId, itemId).map(
-            item -> {
-                item.setQuantity(quantity);
-                item.setUnitPrice(unitPrice);
+                item -> {
+                    item.setQuantity(quantity);
+                    item.setUnitPrice(unitPrice);
 
-                this.mapper.save(item);
+                    this.table.updateItem(item);
 
-                return item;
-            }
-        );
+                    return item;
+                });
     }
 
     @Override
@@ -175,6 +187,6 @@ public class DynamoDBCartService implements CartService {
     }
 
     private String hashKey(String customerId, String itemId) {
-        return customerId+":"+itemId;
+        return customerId + ":" + itemId;
     }
 }

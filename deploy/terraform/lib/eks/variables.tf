@@ -1,16 +1,18 @@
 variable "environment_name" {
-  type = string
+  description = "Name of the environment"
+  type        = string
 }
 
 variable "cluster_version" {
   description = "EKS cluster version."
   type        = string
-  default     = "1.24"
+  default     = "1.30"
 }
 
 variable "tags" {
   description = "List of tags to be associated with resources."
   default     = {}
+  type        = map(string)
 }
 
 variable "vpc_id" {
@@ -30,6 +32,12 @@ variable "subnet_ids" {
 
 variable "istio_enabled" {
   description = "Boolean value that enables istio."
-  type        = bool 
+  type        = bool
+  default     = false
+}
+
+variable "opentelemetry_enabled" {
+  description = "Boolean value that enables OpenTelemetry."
+  type        = bool
   default     = false
 }

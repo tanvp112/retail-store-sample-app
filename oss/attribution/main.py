@@ -8,13 +8,16 @@ from urllib.error import HTTPError
 from jinja2 import Template
 from os.path import exists
 import sys
+import pathlib
 
-license = "^LICENSE"
+license = "^(LICENSE|LICENCE)($|\.md|\.txt)"
+license_specific = "^(LICENSE|LICENCE)([\.-]{})(\.md|\.txt)?"
 notice = "NOTICE"
 
 generic_licenses = {
   "Apache-2.0": "https://www.apache.org/licenses/LICENSE-2.0.txt",
   "MIT": "https://spdx.org/licenses/MIT.txt",
+  "MIT-0": "https://raw.githubusercontent.com/aws/mit-0/master/MIT-0",
   "ISC": "https://spdx.org/licenses/ISC.txt",
   "BSD-2-Clause": "https://spdx.org/licenses/BSD-2-Clause.txt",
   "BSD-3-Clause": "https://spdx.org/licenses/BSD-3-Clause.txt",
@@ -24,30 +27,30 @@ generic_licenses = {
   "EPL-2.0": "https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt"
 }
 
-def find_license(path):
+def extract_license(license_path):
+  text_file = open(license_path, "r")
+
+  data = text_file.read()
+  
+  text_file.close()
+
+  return data
+
+def find_license(path, license_name):
+  candidates = []
+
   for root, directories, files in os.walk(path):
-
-    for name in files:
-
+    for name in sorted(files):
+      if re.search(license_specific.format(license_name), name, re.IGNORECASE):
+        return extract_license(os.path.join(root, name))
       if re.search(license, name, re.IGNORECASE):
-        if ".java" in name:
-          break
-        elif ".py" in name:
-          break
-        elif ".js" in name:
-          break
+        return extract_license(os.path.join(root, name))
 
-        license_path = os.path.join(root, name)
-
-        text_file = open(license_path, "r")
-
-        data = text_file.read()
-        
-        #close file
-        text_file.close()
-
-        return data
-      
+def fetch_http_license(url):
+  try:
+    return urllib.request.urlopen(url).read().decode('utf-8')
+  except HTTPError as err:
+    print('Failed to fetch {}'.format(url))
 
 template = """# Open Source Software Attribution
 
@@ -102,10 +105,17 @@ if exists(analyzer_path):
 
     package_src_path = '{}/{}/{}/{}/{}'.format(src_path, package_manager, urllib.parse.quote_plus(group), urllib.parse.quote_plus(package_name),version)
 
-    license_text = find_license(package_src_path)
+    license_name = None
+
+    if 'concluded_license' in package:
+      license_name = package['concluded_license']
+    elif 'spdx_expression' in package['declared_licenses_processed']:
+      license_name = package['declared_licenses_processed']['spdx_expression']
+
+    license_text = find_license(package_src_path, license_name)
 
     if(license_text is None):
-      if 'spdx_expression' in package['declared_licenses_processed']:
+      if license_name is not None:
         license_name = package['declared_licenses_processed']['spdx_expression']
 
         print('Warning: Defaulting to generic {} for {}'.format(license_name, id))
@@ -138,12 +148,23 @@ elif exists(go_licenses_path):
         actual_license_url = 'https://go.dev/LICENSE?m=text'
 
       if actual_license_url is not None:
-        try:
-          license_text = urllib.request.urlopen(actual_license_url).read().decode('utf-8')
+        license_text = fetch_http_license(actual_license_url)
 
-          packages.append({"name": name, "url": None, "license": license_text, "version": version, "source_url": None})
-        except HTTPError as err:
-          print('Failed to fetch {}'.format(actual_license_url))
+        if license_text is None:
+          parts = actual_license_url.split('/', 5)
+          base_url = '/'.join(parts[:-1])
+          license_text = fetch_http_license("{}/raw/{}/LICENSE".format(base_url, version))
+
+        if license_text is None:
+          print('Warning: Defaulting to generic {} for {}'.format(license_name, name))
+
+          if license_name in generic_licenses:
+            generic_license_url = generic_licenses[license_name]
+            license_text = urllib.request.urlopen(generic_license_url).read().decode('utf-8')
+          else:
+            print('Warning: License {} missing from URL map'.format(license_name))
+
+        packages.append({"name": name, "url": None, "license": license_text, "version": version, "source_url": None})
       else:
         print('Warning: No license entry for {}'.format(name))
 

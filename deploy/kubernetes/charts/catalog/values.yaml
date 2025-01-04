@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: public.ecr.aws/aws-containers/retail-store-sample-catalog
   pullPolicy: IfNotPresent
-  tag: 0.2.0
+  tag: 0.8.4
 
 imagePullSecrets: []
 nameOverride: ""
@@ -59,6 +59,8 @@ tolerations: []
 
 affinity: {}
 
+topologySpreadConstraints: []
+
 metrics:
   enabled: true
   podAnnotations:
@@ -89,7 +91,7 @@ mysql:
   image:
     repository: public.ecr.aws/docker/library/mysql
     pullPolicy: IfNotPresent
-    tag: "5.7"
+    tag: "8.0"
 
   service:
     type: ClusterIP
@@ -103,7 +105,24 @@ mysql:
 
   affinity: {}
 
+  persistentVolume:
+    enabled: false
+    annotations: {}
+    labels: {}
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    storageClass: ""
+
 securityGroups:
   create: false
-
   securityGroupIds: []
+
+opentelemetry:
+  enabled: false
+  instrumentation: ""
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 2
+  maxUnavailable: 1

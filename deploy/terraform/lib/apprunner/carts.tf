@@ -10,10 +10,14 @@ module "app_runner_carts" {
         port = 8080
         runtime_environment_variables = {
           CARTS_DYNAMODB_TABLENAME = var.carts_dynamodb_table_name
+          SPRING_PROFILES_ACTIVE   = "dynamodb"
         }
       }
-      image_identifier      = module.container_images.result.cart
-      image_repository_type = "ECR_PUBLIC"
+      image_identifier      = module.container_images.result.cart.url
+      image_repository_type = var.image_repository_type
+    }
+    authentication_configuration = {
+      access_role_arn = local.access_role_arn
     }
   }
 

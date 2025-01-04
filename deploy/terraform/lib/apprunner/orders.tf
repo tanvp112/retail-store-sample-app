@@ -1,25 +1,34 @@
 resource "aws_apprunner_service" "orders" {
   service_name = "${var.environment_name}-orders"
-  
+
+  depends_on = [
+    aws_secretsmanager_secret_version.orders_db,
+    aws_secretsmanager_secret_version.mq
+  ]
+
   source_configuration {
     auto_deployments_enabled = false
     image_repository {
       image_configuration {
         port = 8080
         runtime_environment_secrets = {
-          SPRING_DATASOURCE_WRITER_URL      = "${aws_secretsmanager_secret.orders_db.arn}:host::"
-          SPRING_DATASOURCE_WRITER_USERNAME = "${aws_secretsmanager_secret.orders_db.arn}:username::"
-          SPRING_DATASOURCE_WRITER_PASSWORD = "${aws_secretsmanager_secret.orders_db.arn}:password::"
-          SPRING_DATASOURCE_READER_URL      = "${aws_secretsmanager_secret.orders_db.arn}:host::"
-          SPRING_DATASOURCE_READER_USERNAME = "${aws_secretsmanager_secret.orders_db.arn}:username::"
-          SPRING_DATASOURCE_READER_PASSWORD = "${aws_secretsmanager_secret.orders_db.arn}:password::"
-          SPRING_RABBITMQ_ADDRESSES         = "${aws_secretsmanager_secret.mq.arn}:host::"
-          SPRING_RABBITMQ_USER              = "${aws_secretsmanager_secret.mq.arn}:username::"
-          SPRING_RABBITMQ_PASSWORD          = "${aws_secretsmanager_secret.mq.arn}:password::"
+          SPRING_DATASOURCE_URL      = "${aws_secretsmanager_secret.orders_db.arn}:host::"
+          SPRING_DATASOURCE_USERNAME = "${aws_secretsmanager_secret.orders_db.arn}:username::"
+          SPRING_DATASOURCE_PASSWORD = "${aws_secretsmanager_secret.orders_db.arn}:password::"
+          SPRING_RABBITMQ_ADDRESSES  = "${aws_secretsmanager_secret.mq.arn}:host::"
+          SPRING_RABBITMQ_USERNAME   = "${aws_secretsmanager_secret.mq.arn}:username::"
+          SPRING_RABBITMQ_PASSWORD   = "${aws_secretsmanager_secret.mq.arn}:password::"
+        }
+        runtime_environment_variables = {
+          RETAIL_ORDERS_MESSAGING_PROVIDER = "rabbitmq"
         }
       }
-      image_identifier      = module.container_images.result.orders
-      image_repository_type = "ECR_PUBLIC"
+      image_identifier      = module.container_images.result.orders.url
+      image_repository_type = var.image_repository_type
+    }
+
+    authentication_configuration {
+      access_role_arn = local.access_role_arn
     }
   }
 
@@ -59,8 +68,8 @@ resource "aws_apprunner_vpc_ingress_connection" "orders" {
 }
 
 resource "random_string" "random_orders_secret" {
-  length           = 4
-  special          = false
+  length  = 4
+  special = false
 }
 
 resource "aws_secretsmanager_secret" "orders_db" {
@@ -74,7 +83,7 @@ resource "aws_secretsmanager_secret_version" "orders_db" {
     {
       username = var.orders_db_username
       password = var.orders_db_password
-      host     = "jdbc:mariadb://${var.orders_db_endpoint}:${var.orders_db_port}/${var.orders_db_name}"
+      host     = "jdbc:postgresql://${var.orders_db_endpoint}:${var.orders_db_port}/${var.orders_db_name}"
     }
   )
 }
@@ -106,7 +115,7 @@ data "aws_iam_policy_document" "orders_db_secret" {
       "secretsmanager:GetSecretValue",
       "kms:Decrypt*"
     ]
-    effect    = "Allow"
+    effect = "Allow"
     resources = [
       aws_secretsmanager_secret.orders_db.arn,
       aws_secretsmanager_secret.mq.arn,

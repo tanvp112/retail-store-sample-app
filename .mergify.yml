@@ -1,8 +1,18 @@
 queue_rules:
   - name: default
-    conditions:
-      # Conditions to get out of the queue (= merged)
+
+    queue_conditions:
+      - base=main
+      - author=dependabot[bot]
       - status-success=CI
+      - status-success=Docker E2E Tests
+      - status-success=Kubernetes E2E Tests
+      - -title~=(WIP|wip)
+      - -label~=(blocked|do-not-merge)
+      - -merged
+      - -closed
+    merge_conditions: []
+    merge_method: squash
 
 pull_request_rules:
   - name: Automatically approve and merge Dependabot PRs
@@ -10,6 +20,8 @@ pull_request_rules:
       - base=main
       - author=dependabot[bot]
       - status-success=CI
+      - status-success=Docker E2E Tests
+      - status-success=Kubernetes E2E Tests
       - -title~=(WIP|wip)
       - -label~=(blocked|do-not-merge)
       - -merged
@@ -18,5 +30,3 @@ pull_request_rules:
       review:
         type: APPROVE
       queue:
-        method: squash
-        name: default

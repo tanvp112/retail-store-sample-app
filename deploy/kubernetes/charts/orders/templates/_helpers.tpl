@@ -3,7 +3,7 @@
 Expand the name of the chart.
 */}}
 {{- define "orders.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default "orders" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -15,7 +15,7 @@ If release name contains chart name it will be used as a full name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := default "orders" .Values.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -28,7 +28,7 @@ If release name contains chart name it will be used as a full name.
 Create chart name and version as used by the chart label.
 */}}
 {{- define "orders.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" "orders" .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -50,6 +50,7 @@ Selector labels
 app.kubernetes.io/name: {{ include "orders.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: service
+app.kuberneres.io/owner: retail-store-sample
 {{- end }}
 
 {{/*
@@ -74,26 +75,27 @@ Create the name of the config map to use
 {{- end }}
 {{- end }}
 
+
 {{/* podAnnotations */}}
 {{- define "orders.podAnnotations" -}}
-{{- if .Values.podAnnotations }}
-{{- toYaml .Values.podAnnotations }}
-{{- end }}
-{{- if .Values.metrics.podAnnotations }}
-{{- toYaml .Values.metrics.podAnnotations }}
+{{- if or .Values.metrics.enabled .Values.podAnnotations }}
+{{- $podAnnotations := .Values.podAnnotations}}
+{{- $metricsAnnotations := .Values.metrics.podAnnotations}}
+{{- $allAnnotations := merge $podAnnotations $metricsAnnotations }}
+{{- toYaml $allAnnotations }}
 {{- end }}
 {{- end -}}
 
-{{- define "orders.mysql.fullname" -}}
-{{- include "orders.fullname" . }}-mysql
+{{- define "orders.postgresql.fullname" -}}
+{{- include "orders.fullname" . }}-postgresql
 {{- end -}}
 
 {{/*
-Common labels for mysql
+Common labels for postgresql
 */}}
-{{- define "orders.mysql.labels" -}}
+{{- define "orders.postgresql.labels" -}}
 helm.sh/chart: {{ include "orders.chart" . }}
-{{ include "orders.mysql.selectorLabels" . }}
+{{ include "orders.postgresql.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -101,12 +103,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels for mysql
+Selector labels for postgresql
 */}}
-{{- define "orders.mysql.selectorLabels" -}}
+{{- define "orders.postgresql.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "orders.fullname" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: mysql
+app.kubernetes.io/component: postgresql
 {{- end }}
 
 {{- define "getOrGeneratePass" }}
@@ -121,35 +123,19 @@ app.kubernetes.io/component: mysql
 {{- end -}}
 {{- end }}
 
-{{- define "orders.mysql.password" -}}
-{{- if not (empty .Values.mysql.secret.password) -}}
-    {{- .Values.mysql.secret.password | b64enc -}}
+{{- define "orders.postgresql.password" -}}
+{{- if not (empty .Values.postgresql.secret.password) -}}
+    {{- .Values.postgresql.secret.password | b64enc -}}
 {{- else -}}
-    {{- include "getOrGeneratePass" (dict "Namespace" .Release.Namespace "Kind" "Secret" "Name" .Values.mysql.secret.name "Key" "password") -}}
+    {{- include "getOrGeneratePass" (dict "Namespace" .Release.Namespace "Kind" "Secret" "Name" .Values.postgresql.secret.name "Key" "password") -}}
 {{- end -}}
 {{- end -}}
 
-{{- define "orders.mysql.reader.password" -}}
-{{- if not (empty .Values.mysql.reader.secret.password) -}}
-    {{- .Values.mysql.reader.secret.password | b64enc -}}
+{{- define "orders.postgresql.endpoint" -}}
+{{- if not (empty .Values.postgresql.endpoint.host) -}}
+jdbc:postgresql://{{- .Values.postgresql.endpoint.host -}}:{{- .Values.postgresql.endpoint.port -}}/{{ .Values.postgresql.database }}
 {{- else -}}
-    {{- include "getOrGeneratePass" (dict "Namespace" .Release.Namespace "Kind" "Secret" "Name" .Values.mysql.reader.secret.name "Key" "password") -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "orders.mysql.endpoint" -}}
-{{- if not (empty .Values.mysql.endpoint) -}}
-    {{- .Values.mysql.endpoint -}}
-{{- else -}}
-jdbc:mariadb://{{ include "orders.mysql.fullname" . }}:{{ .Values.mysql.service.port }}/{{ .Values.mysql.database }}
-{{- end -}}
-{{- end -}}
-
-{{- define "orders.mysql.reader.endpoint" -}}
-{{- if not (empty .Values.mysql.reader.endpoint) -}}
-    {{- .Values.mysql.reader.endpoint -}}
-{{- else -}}
-{{- include "orders.mysql.endpoint" . -}}
+jdbc:postgresql://{{ include "orders.postgresql.fullname" . }}:{{ .Values.postgresql.service.port }}/{{ .Values.postgresql.database }}
 {{- end -}}
 {{- end -}}
 

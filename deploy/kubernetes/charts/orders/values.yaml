@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: public.ecr.aws/aws-containers/retail-store-sample-orders
   pullPolicy: IfNotPresent
-  tag: 0.2.0
+  tag: 0.8.4
 
 imagePullSecrets: []
 nameOverride: ""
@@ -59,6 +59,8 @@ tolerations: []
 
 affinity: {}
 
+topologySpreadConstraints: []
+
 metrics:
   enabled: true
   podAnnotations:
@@ -70,12 +72,14 @@ configMap:
   create: true
   name:
 
-mysql:
+postgresql:
   create: true
 
   database: orders
 
-  endpoint: ""
+  endpoint:
+    host: ""
+    port: ""
 
   secret:
     create: true
@@ -92,13 +96,13 @@ mysql:
       password: ""
 
   image:
-    repository: mysql
+    repository: public.ecr.aws/docker/library/postgres
     pullPolicy: IfNotPresent
-    tag: "5.7"
+    tag: "16.1"
 
   service:
     type: ClusterIP
-    port: 3306
+    port: 5432
 
   podAnnotations: {}
 
@@ -108,11 +112,20 @@ mysql:
 
   affinity: {}
 
+  persistentVolume:
+    enabled: false
+    annotations: {}
+    labels: {}
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    # storageClass: gp2
+
 rabbitmq:
   create: true
 
   address: ""
-  
+
   secret:
     create: true
     name: orders-rabbitmq
@@ -120,7 +133,7 @@ rabbitmq:
     password: ""
 
   image:
-    repository: "rabbitmq"
+    repository: "public.ecr.aws/docker/library/rabbitmq"
     pullPolicy: IfNotPresent
     tag: "3-management"
 
@@ -139,7 +152,25 @@ rabbitmq:
 
   affinity: {}
 
+  persistentVolume:
+    enabled: false
+    annotations: {}
+    labels: {}
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    # storageClass: gp2
+
 securityGroups:
   create: false
 
   securityGroupIds: []
+
+opentelemetry:
+  enabled: false
+  instrumentation: ""
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 2
+  maxUnavailable: 1

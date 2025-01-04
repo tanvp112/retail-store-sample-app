@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/orders")
-@Tag(name="orders")
+@Tag(name = "orders")
 @Slf4j
 public class OrderController {
 
@@ -45,6 +45,8 @@ public class OrderController {
     @PostMapping
     @Operation(summary = "Create an order", operationId = "createOrder")
     public ExistingOrder order(@RequestBody Order orderRequest) {
+        log.debug("Creating order {}", orderRequest);
+
         return this.orderMapper.toExistingOrder(this.service.create(this.orderMapper.toOrderEntity(orderRequest)));
     }
 
