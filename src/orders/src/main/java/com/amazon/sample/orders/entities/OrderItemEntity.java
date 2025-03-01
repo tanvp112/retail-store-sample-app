@@ -18,37 +18,82 @@
 
 package com.amazon.sample.orders.entities;
 
-import lombok.Data;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
-import jakarta.persistence.*;
-import java.io.Serializable;
-
-@Entity
-@Table(name="CUSTOMER_ORDER_ITEM")
-@Data
+@Table(name = "order_items")
 public class OrderItemEntity {
-    @Embeddable
-    @Data
-    public static class Key implements Serializable {
-        private String orderId;
-        private String productId;
-    }
 
-    @EmbeddedId
-    @AttributeOverrides({
-        @AttributeOverride(name="productId",
-          column=@Column(length=64))
-    })
-    private Key id;
+  @Column(value = "product_id")
+  private String productId;
 
-    @Transient
-    private String productId;
+  @Column(value = "quantity")
+  private int quantity;
 
-    private int quantity;
+  @Column(value = "unit_cost")
+  private int unitCost;
 
-    private int price;
+  @Column(value = "total_cost")
+  private int totalCost;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("orderId")
-    private OrderEntity order;
+  public OrderItemEntity() {}
+
+  public OrderItemEntity(
+    String productId,
+    int quantity,
+    int unitCost,
+    int totalCost
+  ) {
+    this.productId = productId;
+    this.quantity = quantity;
+    this.unitCost = unitCost;
+    this.totalCost = totalCost;
+  }
+
+  public String getProductId() {
+    return productId;
+  }
+
+  public void setProductId(String productId) {
+    this.productId = productId;
+  }
+
+  public int getQuantity() {
+    return quantity;
+  }
+
+  public void setQuantity(int quantity) {
+    this.quantity = quantity;
+  }
+
+  public int getUnitCost() {
+    return unitCost;
+  }
+
+  public void setUnitCost(int unitCost) {
+    this.unitCost = unitCost;
+  }
+
+  public int getTotalCost() {
+    return totalCost;
+  }
+
+  public void setTotalCost(int totalCost) {
+    this.totalCost = totalCost;
+  }
+
+  @Override
+  public String toString() {
+    return (
+      "OrderItemEntity [productId=" +
+      productId +
+      ", quantity=" +
+      quantity +
+      ", unitCost=" +
+      unitCost +
+      ", totalCost=" +
+      totalCost +
+      "]"
+    );
+  }
 }

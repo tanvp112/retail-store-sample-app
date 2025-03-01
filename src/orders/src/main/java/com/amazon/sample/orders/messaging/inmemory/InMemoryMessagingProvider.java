@@ -24,12 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class InMemoryMessagingProvider implements MessagingProvider {
 
-    public InMemoryMessagingProvider() {
-        log.warn("Using in-memory messaging provider");
-    }
-
-    @Override
-    public void publishEvent(Object event) {
-        log.info("Publishing event {}", event);
-    }
+  @Override
+  public void publishEvent(Object event) {
+    log.info("Publishing event {}", event);
+  }
 }

@@ -17,87 +17,118 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config'
 import { Checkout } from './models/Checkout';
 import { CheckoutRequest } from './models/CheckoutRequest';
 import { IOrdersService } from './orders/IOrdersService';
-import { serialize , deserialize} from 'class-transformer';
+import { serialize, deserialize } from 'class-transformer';
 import { CheckoutSubmitted } from './models/CheckoutSubmitted';
 import { IShippingService } from './shipping';
 import { ICheckoutRepository } from './repositories';
+import { Item } from './models/Item';
+import { ShippingRates } from './models/ShippingRates';
 
 @Injectable()
 export class CheckoutService {
-  constructor(private configService: ConfigService, 
-    @Inject('CheckoutRepository') private checkoutRepository : ICheckoutRepository,
-    @Inject('OrdersService') private ordersService : IOrdersService,
-    @Inject('ShippingService') private shippingService : IShippingService) {}
+  constructor(
+    @Inject('CheckoutRepository')
+    private checkoutRepository: ICheckoutRepository,
+    @Inject('OrdersService') private ordersService: IOrdersService,
+    @Inject('ShippingService') private shippingService: IShippingService,
+  ) {}
 
-  async get(customerId: string) : Promise<Checkout> {
+  async get(customerId: string): Promise<Checkout> {
     const json = await this.checkoutRepository.get(customerId);
 
-    if(!json) {
+    if (!json) {
       return null;
     }
 
     return deserialize(Checkout, json);
   }
 
+  async update(
+    customerId: string,
+    request: CheckoutRequest,
+  ): Promise<Checkout> {
+    let subtotal = 0;
 
-  async update(customerId: string, request : CheckoutRequest) : Promise<Checkout> {
-    const tax = request.shippingAddress ? Math.floor(request.subtotal * 0.05) : -1; // Hardcoded 5% tax for now
+    const items: Item[] = request.items.map((item) => {
+      const totalCost = item.price * item.quantity;
+      subtotal += totalCost;
+
+      return {
+        ...item,
+        totalCost,
+      };
+    });
+
+    const tax = request.shippingAddress ? 5 : -1; // Hardcoded $10 tax for now
     const effectiveTax = tax == -1 ? 0 : tax;
 
-    return this.shippingService.getShippingRates(request).then(async (shippingRates) => {
-      let shipping = -1;
+    let shipping = -1;
+    let shippingRates: ShippingRates = null;
 
-      if(shippingRates) {
-        for ( let i = 0; i < shippingRates.rates.length; i++ ) {
-          if(shippingRates.rates[i].token == request.deliveryOptionToken) {
+    if (request.shippingAddress) {
+      shippingRates = await this.shippingService.getShippingRates(request);
+
+      if (shippingRates) {
+        for (let i = 0; i < shippingRates.rates.length; i++) {
+          if (shippingRates.rates[i].token == request.deliveryOptionToken) {
             shipping = shippingRates.rates[i].amount;
           }
         }
       }
+    }
 
-      const checkout : Checkout =  {
-        shippingRates,
-        request,
-        paymentId: this.makeid(16),
-        paymentToken: this.makeid(32),
-        shipping,
-        tax,
-        total: request.subtotal + effectiveTax,
-      };
+    const effectiveShipping = shipping == -1 ? 0 : shipping;
 
-      await this.checkoutRepository.set(customerId, serialize(checkout));
+    const checkout: Checkout = {
+      shippingRates,
+      shippingAddress: request.shippingAddress,
+      deliveryOptionToken: request.deliveryOptionToken,
+      items,
+      paymentId: this.makeid(16),
+      paymentToken: this.makeid(32),
+      subtotal,
+      shipping,
+      tax,
+      total: subtotal + effectiveTax + effectiveShipping,
+    };
 
-      return checkout;
-    });
+    await this.checkoutRepository.set(customerId, serialize(checkout));
+
+    return checkout;
   }
 
-  async submit(customerId: string) : Promise<CheckoutSubmitted> {
-    let checkout = await this.get(customerId);
+  async submit(customerId: string): Promise<CheckoutSubmitted> {
+    const checkout = await this.get(customerId);
 
-    if(!checkout) {
+    if (!checkout) {
       throw new Error('Checkout not found');
     }
 
-    let order = await this.ordersService.create(checkout);
+    const order = await this.ordersService.create(checkout);
 
     await this.checkoutRepository.remove(customerId);
 
     return Promise.resolve({
       orderId: order.id,
-      customerEmail: checkout.request.customerEmail
+      email: checkout.shippingAddress.email,
+      items: checkout.items,
+      subtotal: checkout.subtotal,
+      shipping: checkout.shipping,
+      tax: checkout.tax,
+      total: checkout.total,
     });
   }
 
   private makeid(length) {
-    let result             = '';
-    const characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    const characters =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     const charactersLength = characters.length;
-    for ( let i = 0; i < length; i++ ) {
-       result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    for (let i = 0; i < length; i++) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
     }
     return result;
   }

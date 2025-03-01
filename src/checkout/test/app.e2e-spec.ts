@@ -20,29 +20,59 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { StartedTestContainer, Wait } from 'testcontainers';
+import { GenericContainer } from 'testcontainers';
+import { ConfigModule } from '@nestjs/config';
+
+jest.setTimeout(30000); // 30 seconds
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
+  let redisContainer: StartedTestContainer;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
+    redisContainer = await new GenericContainer('redis:6.0-alpine')
+      .withExposedPorts(6379)
+      .withStartupTimeout(20000) // 20 seconds startup timeout
+      .withWaitStrategy(Wait.forLogMessage('Ready to accept connections'))
+      .start();
+
+    const redisPort = redisContainer.getMappedPort(6379);
+    const redisHost = redisContainer.getHost();
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [
+        ConfigModule.forRoot({
+          load: [
+            () => ({
+              persistence: {
+                provider: 'redis',
+                redis: {
+                  url: `redis://${redisHost}:${redisPort}`,
+                },
+              },
+            }),
+          ],
+        }),
+        AppModule,
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
   });
 
+  afterAll(async () => {
+    await app.close();
+    await redisContainer.stop();
+  });
+
   it('/health (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/health')
-      .expect(200);
+    return request(app.getHttpServer()).get('/health').expect(200);
   });
 
   it('/checkout/test123 (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/checkout/test123')
-      .expect(404);
+    return request(app.getHttpServer()).get('/checkout/test123').expect(404);
   });
 
   it('/checkout/test124 (POST)', () => {
@@ -56,31 +86,27 @@ describe('AppController (e2e)', () => {
 const valid = {
   customerEmail: 'asdasd@asdasd.com',
   items: [
-      {
-          id: 'a1',
-          name: 'A1',
-          quantity: 1,
-          unitCost: 123,
-          totalCost: 123,
-          imageUrl: "localhost:8080/image.jpg"
-      },
-      {
-        id: 'b1',
-        name: 'B1',
-        quantity: 1,
-        unitCost: 123,
-        totalCost: 123,
-        imageUrl: "localhost:8080/image.jpg"
-      }
+    {
+      id: 'a1',
+      name: 'A1',
+      quantity: 1,
+      unitCost: 123,
+    },
+    {
+      id: 'b1',
+      name: 'B1',
+      quantity: 1,
+      unitCost: 123,
+    },
   ],
   shippingAddress: {
-      'firstName': 'John',
-      'lastName': 'Doe',
-      'address1': '999 Main St.',
-      'address2': '#123',
-      'city': 'Sometown',
-      'state': 'AB',
-      'zip': '12345'
+    firstName: 'John',
+    lastName: 'Doe',
+    address1: '999 Main St.',
+    address2: '#123',
+    city: 'Sometown',
+    state: 'AB',
+    zip: '12345',
   },
-  subtotal: 492
+  subtotal: 492,
 };

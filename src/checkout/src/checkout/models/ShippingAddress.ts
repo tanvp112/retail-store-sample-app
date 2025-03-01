@@ -16,30 +16,41 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import { IsOptional, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class ShippingAddress {
+  @IsString()
+  @ApiProperty()
+  firstName: string;
 
   @IsString()
-  firstName : string;
+  @ApiProperty()
+  lastName: string;
 
   @IsString()
-  lastName : string;
-
-  @IsString()
-  address1 : string;
+  @ApiProperty()
+  address1: string;
 
   @IsString()
   @IsOptional()
-  address2 : string;
+  @ApiProperty()
+  address2: string;
 
   @IsString()
-  city : string;
+  @ApiProperty()
+  city: string;
 
   @IsString()
-  state : string;
+  @ApiProperty()
+  state: string;
 
   @IsString()
-  zip : string;
+  @ApiProperty()
+  zip: string;
 
+  @IsEmail()
+  @IsOptional()
+  @ApiProperty()
+  email: string;
 }

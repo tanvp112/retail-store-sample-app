@@ -18,30 +18,88 @@
 
 package com.amazon.sample.orders.entities;
 
-import lombok.Data;
-import org.hibernate.annotations.GenericGenerator;
-
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.MappedCollection;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name="CUSTOMER_ORDER")
-@Data
+@Table(name = "orders")
 public class OrderEntity {
 
-    @Id
-    @GeneratedValue(generator = "uuid")
-    @GenericGenerator(name = "uuid", strategy = "uuid2")
-    private String id;
-    private String firstName;
-    private String lastName;
-    private String email;
+  @Id
+  private String id;
 
-    @OneToMany(
-        mappedBy = "order",
-        orphanRemoval = true,
-        fetch = FetchType.EAGER
-    )
-    private List<OrderItemEntity> items = new ArrayList<>();
+  private LocalDateTime createdDate;
+
+  @Column(value = "order_id")
+  private ShippingAddressEntity shippingAddress;
+
+  @MappedCollection(idColumn = "order_id", keyColumn = "product_id")
+  private List<OrderItemEntity> items = new ArrayList<>();
+
+  public OrderEntity() {}
+
+  public OrderEntity(
+    List<OrderItemEntity> items,
+    ShippingAddressEntity shippingAddress
+  ) {
+    this.items = items;
+    this.shippingAddress = shippingAddress;
+  }
+
+  public String getId() {
+    return id;
+  }
+
+  public void setId(String id) {
+    this.id = id;
+  }
+
+  public LocalDateTime getCreatedDate() {
+    return createdDate;
+  }
+
+  public void setCreatedDate(LocalDateTime createdDate) {
+    this.createdDate = createdDate;
+  }
+
+  public List<OrderItemEntity> getItems() {
+    return items;
+  }
+
+  public void setItems(List<OrderItemEntity> items) {
+    this.items = items;
+  }
+
+  public OrderEntity addItem(OrderItemEntity item) {
+    this.items.add(item);
+
+    return this;
+  }
+
+  public ShippingAddressEntity getShippingAddress() {
+    return shippingAddress;
+  }
+
+  public void setShippingAddress(ShippingAddressEntity shippingAddress) {
+    this.shippingAddress = shippingAddress;
+  }
+
+  @Override
+  public String toString() {
+    return (
+      "OrderEntity [id=" +
+      id +
+      ", createdDate=" +
+      createdDate +
+      ", shippingAddress=" +
+      shippingAddress +
+      ", items=" +
+      items +
+      "]"
+    );
+  }
 }

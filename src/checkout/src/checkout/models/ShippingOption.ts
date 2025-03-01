@@ -16,20 +16,23 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import { IsInt, IsNumber, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsString } from 'class-validator';
 
 export class ShippingOption {
-
   @IsString()
-  name : string;
+  @ApiProperty()
+  name: string;
 
   @IsInt()
-  amount : number;
+  @ApiProperty({ type: 'integer' })
+  amount: number;
 
   @IsString()
-  token : string;
+  @ApiProperty()
+  token: string;
 
   @IsInt()
-  estimatedDays : number;
-
+  @ApiProperty({ type: 'integer' })
+  estimatedDays: number;
 }

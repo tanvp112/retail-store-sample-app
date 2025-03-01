@@ -17,36 +17,65 @@
  */
 
 import { Type } from 'class-transformer';
-import { IsInt, IsString, Min, ValidateNested } from 'class-validator';
-import { CheckoutRequest } from './CheckoutRequest';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { ShippingRates } from './ShippingRates';
+import { ApiProperty } from '@nestjs/swagger';
+import { ShippingAddress } from './ShippingAddress';
+import { Item } from './Item';
 
 export class Checkout {
+  @ValidateNested({ each: true })
+  @Type(() => Item)
+  @ApiProperty({ type: [Item] })
+  items: Item[];
 
   @ValidateNested()
-  @Type(() => CheckoutRequest)
-  request : CheckoutRequest;
+  @Type(() => ShippingAddress)
+  @IsOptional()
+  @ApiProperty()
+  shippingAddress: ShippingAddress;
 
+  @IsString()
+  @IsOptional()
+  @ApiProperty()
+  deliveryOptionToken: string;
+
+  @ApiProperty()
   @ValidateNested()
   @Type(() => ShippingRates)
-  shippingRates : ShippingRates;
+  shippingRates: ShippingRates;
 
+  @ApiProperty()
   @IsString()
-  paymentId : string;
+  paymentId: string;
 
+  @ApiProperty()
   @IsString()
-  paymentToken : string;
+  paymentToken: string;
 
   @IsInt()
-  @Min(-1)
-  shipping : number;
+  @Min(0)
+  @ApiProperty({ type: 'integer' })
+  subtotal: number;
 
+  @ApiProperty({ type: 'integer' })
   @IsInt()
   @Min(-1)
-  tax : number;
+  shipping: number;
 
+  @ApiProperty({ type: 'integer' })
   @IsInt()
   @Min(-1)
-  total : number;
+  tax: number;
 
+  @ApiProperty({ type: 'integer' })
+  @IsInt()
+  @Min(-1)
+  total: number;
 }

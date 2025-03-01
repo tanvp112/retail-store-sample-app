@@ -28,34 +28,47 @@
  * Do not edit the class manually.
  */
 
-import { RequestFile } from '../api';
-
 export class OrderItem {
-    'price'?: number;
-    'productId'?: string;
-    'quantity'?: number;
+  'price'?: number;
+  'productId'?: string;
+  'quantity'?: number;
+  'totalCost'?: number;
+  'name'?: string;
+  static discriminator: string | undefined = undefined;
 
-    static discriminator: string | undefined = undefined;
+  static attributeTypeMap: Array<{
+    name: string;
+    baseName: string;
+    type: string;
+  }> = [
+    {
+      name: 'unitCost',
+      baseName: 'price',
+      type: 'number',
+    },
+    {
+      name: 'id',
+      baseName: 'productId',
+      type: 'string',
+    },
+    {
+      name: 'name',
+      baseName: 'name',
+      type: 'string',
+    },
+    {
+      name: 'totalCost',
+      baseName: 'totalCost',
+      type: 'number',
+    },
+    {
+      name: 'quantity',
+      baseName: 'quantity',
+      type: 'number',
+    },
+  ];
 
-    static attributeTypeMap: Array<{name: string, baseName: string, type: string}> = [
-        {
-            "name": "price",
-            "baseName": "price",
-            "type": "number"
-        },
-        {
-            "name": "productId",
-            "baseName": "productId",
-            "type": "string"
-        },
-        {
-            "name": "quantity",
-            "baseName": "quantity",
-            "type": "number"
-        }    ];
-
-    static getAttributeTypeMap() {
-        return OrderItem.attributeTypeMap;
-    }
+  static getAttributeTypeMap() {
+    return OrderItem.attributeTypeMap;
+  }
 }
-

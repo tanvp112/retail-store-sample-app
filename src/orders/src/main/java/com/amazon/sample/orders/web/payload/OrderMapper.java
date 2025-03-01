@@ -19,18 +19,17 @@
 package com.amazon.sample.orders.web.payload;
 
 import com.amazon.sample.orders.entities.OrderEntity;
-import com.amazon.sample.orders.entities.OrderItemEntity;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(
+  componentModel = "spring",
+  uses = { OrderItemMapper.class, ShippingAddressMapper.class }
+)
 public interface OrderMapper {
-    Order toOrder(OrderEntity entity);
+  ExistingOrder toExistingOrder(OrderEntity entity);
 
-    OrderItem toOrderItem(OrderItemEntity entity);
-
-    ExistingOrder toExistingOrder(OrderEntity entity);
-
-    OrderEntity toOrderEntity(Order order);
-
-    OrderItemEntity toOrderItemEntity(OrderItem item);
+  @Mapping(target = "id", ignore = true)
+  @Mapping(target = "createdDate", ignore = true)
+  OrderEntity toOrderEntity(Order order);
 }

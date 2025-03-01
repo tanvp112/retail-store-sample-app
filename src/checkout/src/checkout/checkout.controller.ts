@@ -16,28 +16,36 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import { Body, Controller, Get, Inject, NotFoundException, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { CheckoutService } from './checkout.service';
 import { Checkout } from './models/Checkout';
 import { CheckoutRequest } from './models/CheckoutRequest';
 import { CheckoutSubmitted } from './models/CheckoutSubmitted';
+import { ApiCreatedResponse } from '@nestjs/swagger';
 
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
 
-  /*@Get()
-  getHello(): string {
-    this.appService
-    return this.appService.getHello();
-  }*/
-
   @Get(':customerId')
-  async getCheckout(@Param('customerId') customerId: string) : Promise<Checkout> {
+  @ApiCreatedResponse({
+    description: 'The record has been successfully created.',
+    type: Checkout,
+  })
+  async getCheckout(
+    @Param('customerId') customerId: string,
+  ): Promise<Checkout> {
     const checkout = this.checkoutService.get(customerId);
 
-    return checkout.then(function(data) {
-      if(!data) {
+    return checkout.then(function (data) {
+      if (!data) {
         throw new NotFoundException('Checkout not found');
       }
 
@@ -46,12 +54,25 @@ export class CheckoutController {
   }
 
   @Post(':customerId/update')
-  async updateCheckout(@Param('customerId') customerId: string, @Body() request: CheckoutRequest) : Promise<Checkout> {
+  @ApiCreatedResponse({
+    description: 'The record has been successfully created.',
+    type: Checkout,
+  })
+  async updateCheckout(
+    @Param('customerId') customerId: string,
+    @Body() request: CheckoutRequest,
+  ): Promise<Checkout> {
     return this.checkoutService.update(customerId, request);
   }
 
   @Post(':customerId/submit')
-  async submitCheckout(@Param('customerId') customerId: string) : Promise<CheckoutSubmitted> {
+  @ApiCreatedResponse({
+    description: 'The record has been successfully created.',
+    type: CheckoutSubmitted,
+  })
+  async submitCheckout(
+    @Param('customerId') customerId: string,
+  ): Promise<CheckoutSubmitted> {
     return this.checkoutService.submit(customerId);
   }
 }

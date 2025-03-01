@@ -20,74 +20,108 @@ package com.amazon.sample.orders.config.messaging;
 
 import com.amazon.sample.orders.messaging.MessagingProvider;
 import com.amazon.sample.orders.messaging.rabbitmq.RabbitMQMessagingProvider;
-import org.springframework.amqp.core.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.annotation.RabbitListenerConfigurer;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistrar;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Primary;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory;
 import org.springframework.messaging.handler.annotation.support.MessageHandlerMethodFactory;
 
 @Configuration
-@Profile("rabbitmq")
-public class RabbitMQMessagingConfig implements RabbitListenerConfigurer {
-    public static final String EXCHANGE_NAME = "orders-exchange";
+@Slf4j
+@EnableConfigurationProperties(RabbitMQProperties.class)
+@ConditionalOnProperty(
+  prefix = MessagingProperties.PREFIX,
+  name = "provider",
+  havingValue = "rabbitmq"
+)
+public class RabbitMQMessagingConfig
+  extends RabbitAutoConfiguration
+  implements RabbitListenerConfigurer {
 
-    public static final String ORDERS_ORDERS_QUEUE = "orders-orders-queue";
+  @Autowired
+  private RabbitMQProperties properties;
 
-    @Bean
-    public MessagingProvider messagingProvider(RabbitTemplate template) {
-        return new RabbitMQMessagingProvider(template);
-    }
+  public static final String EXCHANGE_NAME = "orders-exchange";
 
-    @Bean
-    Queue queue() {
-        return new Queue(ORDERS_ORDERS_QUEUE, false);
-    }
+  public static final String ORDERS_ORDERS_QUEUE = "orders-orders-queue";
 
-    @Bean
-    FanoutExchange exchange() {
-        return new FanoutExchange(EXCHANGE_NAME);
-    }
+  @Bean
+  public MessagingProvider messagingProvider(RabbitTemplate template) {
+    log.info("Using RabbitMQ messaging");
+    log.info(
+      "RabbitMQ addresses: {}",
+      String.join(",", this.properties.getAddresses())
+    );
 
-    @Bean
-    Binding binding(Queue queue, FanoutExchange exchange) {
-        return BindingBuilder.bind(queue).to(exchange);
-    }
+    return new RabbitMQMessagingProvider(template);
+  }
 
-    @Bean
-    public RabbitTemplate rabbitTemplate(final ConnectionFactory connectionFactory) {
-        final RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
-        rabbitTemplate.setMessageConverter(producerJackson2MessageConverter());
-        return rabbitTemplate;
-    }
+  @Bean
+  Queue queue() {
+    return new Queue(ORDERS_ORDERS_QUEUE, false);
+  }
 
-    @Bean
-    public Jackson2JsonMessageConverter producerJackson2MessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
+  @Bean
+  FanoutExchange exchange() {
+    return new FanoutExchange(EXCHANGE_NAME);
+  }
 
-    // =======
+  @Bean
+  Binding binding(Queue queue, FanoutExchange exchange) {
+    return BindingBuilder.bind(queue).to(exchange);
+  }
 
-    @Override
-    public void configureRabbitListeners(RabbitListenerEndpointRegistrar registrar) {
-        registrar.setMessageHandlerMethodFactory(messageHandlerMethodFactory());
-    }
+  @Bean
+  @Primary
+  public RabbitTemplate customRabbitTemplate(
+    final ConnectionFactory connectionFactory
+  ) {
+    final RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+    rabbitTemplate.setMessageConverter(producerJackson2MessageConverter());
+    return rabbitTemplate;
+  }
 
-    @Bean
-    MessageHandlerMethodFactory messageHandlerMethodFactory() {
-        DefaultMessageHandlerMethodFactory messageHandlerMethodFactory = new DefaultMessageHandlerMethodFactory();
-        messageHandlerMethodFactory.setMessageConverter(consumerJackson2MessageConverter());
-        return messageHandlerMethodFactory;
-    }
+  @Bean
+  public Jackson2JsonMessageConverter producerJackson2MessageConverter() {
+    return new Jackson2JsonMessageConverter();
+  }
 
-    @Bean
-    public MappingJackson2MessageConverter consumerJackson2MessageConverter() {
-        return new MappingJackson2MessageConverter();
-    }
+  // =======
+
+  @Override
+  public void configureRabbitListeners(
+    RabbitListenerEndpointRegistrar registrar
+  ) {
+    registrar.setMessageHandlerMethodFactory(messageHandlerMethodFactory());
+  }
+
+  @Bean
+  MessageHandlerMethodFactory messageHandlerMethodFactory() {
+    DefaultMessageHandlerMethodFactory messageHandlerMethodFactory =
+      new DefaultMessageHandlerMethodFactory();
+    messageHandlerMethodFactory.setMessageConverter(
+      consumerJackson2MessageConverter()
+    );
+    return messageHandlerMethodFactory;
+  }
+
+  @Bean
+  public MappingJackson2MessageConverter consumerJackson2MessageConverter() {
+    return new MappingJackson2MessageConverter();
+  }
 }

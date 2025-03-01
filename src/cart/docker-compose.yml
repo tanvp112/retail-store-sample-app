@@ -1,13 +1,7 @@
-version: '2.3'
-
 services:
-  carts:
+  cart:
     build:
       context: .
-      dockerfile: ../../images/java17/Dockerfile
-      args:
-        JAR_PATH: target/carts-0.0.1-SNAPSHOT.jar
-    image: microservices-demo/carts
     hostname: carts
     restart: always
     cap_drop:
@@ -21,15 +15,16 @@ services:
       - /tmp:rw,noexec,nosuid
     environment:
       - SERVER_TOMCAT_ACCESSLOG_ENABLED=true
-      - SPRING_PROFILES_ACTIVE=dynamodb
-      - CARTS_DYNAMODB_ENDPOINT=http://carts-db:8000
-      - CARTS_DYNAMODB_CREATETABLE=true
+      - RETAIL_CART_PERSISTENCE_PROVIDER=dynamodb
+      - RETAIL_CART_PERSISTENCE_DYNAMODB_ENDPOINT=http://carts-db:8000
+      - RETAIL_CART_PERSISTENCE_DYNAMODB_CREATE_TABLE=true
       - AWS_ACCESS_KEY_ID=key
       - AWS_SECRET_ACCESS_KEY=dummy
     ports:
       - "8082:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 3
@@ -39,7 +34,7 @@ services:
         condition: service_healthy
 
   carts-db:
-    image: amazon/dynamodb-local:1.13.1
+    image: amazon/dynamodb-local:1.20.0
     hostname: carts-db
     restart: always
     cap_drop:
@@ -54,20 +49,13 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/shell/ || exit 1"]
+      test: ["CMD-SHELL", "exit 0"]
       interval: 5s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-
-  waiter:
-    image: busybox:1.33.0
-    restart: 'no'
-    cap_drop:
-      - all
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    command: echo 'Ready'
-    depends_on:
-      carts:
-        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: src
+        - action: rebuild
+          path: pom.xml

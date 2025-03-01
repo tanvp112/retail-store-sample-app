@@ -21,11 +21,12 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { CheckoutModule } from './checkout/checkout.module';
 
 async function bootstrap() {
   // Start SDK before nestjs factory create
   await otelSDK.start();
-  
+
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe());
 
@@ -34,14 +35,17 @@ async function bootstrap() {
     .setDescription('The checkout API')
     .setVersion('1.0')
     .addTag('checkout')
+    .addServer('http://localhost:8000')
     .build();
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, config, {
+    include: [CheckoutModule],
+  });
   SwaggerModule.setup('api', app, document);
 
   // Starts listening for shutdown hooks
   app.enableShutdownHooks();
 
-  const port = process.env.PORT || 8080
+  const port = process.env.PORT || 8080;
 
   await app.listen(port);
 }

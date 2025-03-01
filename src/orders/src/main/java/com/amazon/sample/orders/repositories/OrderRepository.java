@@ -20,7 +20,7 @@ package com.amazon.sample.orders.repositories;
 
 import com.amazon.sample.orders.entities.OrderEntity;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.stereotype.Repository;
 
-public interface OrderRepository extends CrudRepository<OrderEntity, String> {
-
-}
+@Repository
+public interface OrderRepository extends CrudRepository<OrderEntity, String> {}
